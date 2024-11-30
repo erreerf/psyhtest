@@ -1,12 +1,21 @@
 import socket
 import threading
+import os  
 from cryptography.fernet import Fernet
-
 
 key = b'lsfldLWochWnSPjPTraJ5UFzyp8vShEpYUJOPZZwLoM='
 cipher = Fernet(key)
 
 connected_clients = set()
+
+
+default_first_line = b'gAAAAABnDCf4Fck2YqJVN1lhqMDMUk1PRSrfzFqveD0UeENzIWxCUmC7JCQvr9qycqn8_6BzgxnfNJBXmbMBpriYARN-U28EIA=='
+
+def ensure_log_file():
+    if not os.path.exists('log.txt') or os.path.getsize('log.txt') == 0:
+        with open('log.txt', 'wb') as log_file:
+            log_file.write(default_first_line + b'\n')
+        print("Файл log.txt создан или инициализирован со значением по умолчанию.")
 
 def handle_client(conn, addr):
     client_id = f"{addr[0]}:{addr[1]}"
@@ -25,7 +34,6 @@ def handle_client(conn, addr):
         message = cipher.decrypt(encrypted_message).decode()
         mc = message.replace(" ", "")
         if mc.isdigit():
-
             encrypted_data_to_save = cipher.encrypt(message.encode())
             with open('log.txt', 'ab') as log_file:
                 log_file.write(encrypted_data_to_save + b'\n')
@@ -33,14 +41,11 @@ def handle_client(conn, addr):
             print("Данные сохранены в log.txt")
             connected_clients.add(client_id)
             conn.sendall(b"Thank you for your submission.")
-
         else:
             with open('log.txt', 'rb') as log_file:
                 first_line_encrypted = log_file.readline().strip()
                 message_first_line = cipher.decrypt(first_line_encrypted).decode()
                 print(f"Первая строка (декодированная): {message_first_line}")
-
-                encrypted_check_message = cipher.encrypt(message.encode())
 
             if message == ("p" + message_first_line):
                 print("Сообщение совпадает с первой строкой. Отправка файла.")
@@ -50,8 +55,7 @@ def handle_client(conn, addr):
                     data_to_send = log_file.read()
                     conn.sendall(data_to_send)
             else:
-                conn.sendall(b"Invalid message.", )
-
+                conn.sendall(b"Invalid message.")
     except Exception as e:
         print(f"Ошибка: {e}")
         conn.sendall(b"Failed to process your request.")
@@ -61,6 +65,8 @@ def handle_client(conn, addr):
 def start_server():
     host = '127.0.0.1'
     port = 12345
+
+    ensure_log_file()  
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))
